@@ -1,6 +1,7 @@
 from random import randint
 
 import numpy as np
+from tqdm import tqdm
 
 
 class AllData:
@@ -38,9 +39,9 @@ def load_data():
 
 def select_j(i):
     # 需优化
-    j = randint(0, alldata.nums)  # 不能永远从0开始
+    j = randint(0, alldata.nums - 1)  # 不能永远从0开始  randint范围是左右闭区间
     while j == i:
-        j = randint(0, alldata.nums)
+        j = randint(0, alldata.nums - 1)
     return j
 
 
@@ -66,10 +67,12 @@ def smo(max_iter: int):
                 else:
                     L = max(0, alldata.alphas[j] + alldata.alphas[i] - alldata.c)
                     H = min(alldata.c, alldata.alphas[j] + alldata.alphas[i])
+                if L == H:   # 此时alpha为确定值0，无法更新
+                    continue
                 # 3 学习速率
                 eta = alldata.data_mat[i] * alldata.data_mat[i].T + alldata.alphas[j] * alldata.alphas[j].T \
                       - 2 * alldata.data_mat[i] * alldata.data_mat[j].T
-                if eta <= 0:
+                if eta <= 0:  # 学习速率为负，无法有效更新
                     continue
                 # 保存旧值
                 alphai_old = alldata.alphas[i]
@@ -95,12 +98,15 @@ def smo(max_iter: int):
                     alldata.b = b2
                 else:
                     alldata.b = (b1 + b2) / 2
+                alpha_updated += 1
 
             else:
                 continue
+        iternum += 1
+    print()
 
 
 if __name__ == '__main__':
     data_list, label_list = load_data()
     alldata = AllData(data_list, label_list, toler=0.001, c=20)  # k默认1.5
-    smo(max_iter=50)
+    smo(max_iter=5000)
