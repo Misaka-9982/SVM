@@ -47,7 +47,7 @@ def load_data():
 
 
 def select_j(i):
-    # 需优化
+    # 启发式选择
     j = randint(0, alldata.nums - 1)  # 不能永远从0开始  randint范围是左右闭区间
     while j == i:
         j = randint(0, alldata.nums - 1)
@@ -56,14 +56,22 @@ def select_j(i):
 
 def smo(max_iter: int):
     iternum = 0  # 当前迭代次数
-    while iternum < max_iter:  # 是否加入其他条件？
+    entire_data = True
+    alpha_updated = 0
+    while (iternum < max_iter and alpha_updated > 0) or entire_data:  # 是否加入其他条件？
         alpha_updated = 0  # alpha更新次数
-        # 遍历全数据集
-        for i in range(alldata.nums):
+        i_range = []  # 或range对象 表示i的迭代范围
+
+        if entire_data:  # 遍历全数据集
+            i_range = range(alldata.nums)
+        else:  # 遍历非边界值
+            i_range = np.nonzero((alldata.alphas.A != 0) * (alldata.alphas.A != alldata.c))[0]  # 对应位置求and 直接用and会引发报错
+
+        for i in i_range:
             # 1 计算误差
             Ei = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T + alldata.b
                        - alldata.label_mat[i])
-            # 松弛变量范围限定
+            # 松弛变量范围限定                                        受软间隔影响此时alpha可能小于0，因此只需满足一侧，另一边同理
             if ((alldata.label_mat[i] * Ei < -alldata.toler) and (alldata.alphas[i] < alldata.c)) or (
                     (alldata.label_mat[i] * Ei > alldata.toler) and (alldata.alphas[i] > 0)):
                 j = select_j(i)  # 随机选择一个不一样的j
@@ -118,15 +126,19 @@ def smo(max_iter: int):
 
             else:
                 continue
-        if alpha_updated != 0:
-            iternum += 1
-            if iternum % 1 == 0:
-                evaluate()
-            print(f'第{iternum}次迭代')
-        else:
-            print(f'alpha停止更新，训练结束，已训练{iternum}代')
+
+        iternum += 1
+        print(f'第{iternum}次迭代，alpha更新{alpha_updated}次')
+        if iternum % 1 == 0:
             evaluate()
-            # break
+        if entire_data:  # 全样本更新后标志位置False
+            print('全样本更新')
+            entire_data = False
+            if alpha_updated == 0:  # alpha全样本都不更新即结束
+                print(f'alpha停止更新，共迭代{iternum}次')
+                break
+        elif alpha_updated == 0:  # 非全样本 alpha无更新,更换为全样本模式
+            entire_data = True
 
 
 def evaluate():
@@ -156,7 +168,7 @@ if __name__ == '__main__':
     # for knum in range(1000, 2000, 50):
     # print(f'当前k取值为{knum}')
     # sleep(2)
-    alldata = AllData(data_list, label_list, toler=0.1, c=200, k=50)  # k为径向基核函数中的超参数 50-100  C最开始默认200
+    alldata = AllData(data_list, label_list, toler=0.1, c=100, k=50)  # k为径向基核函数中的超参数 50-100  C最开始默认200
     smo(max_iter=550)
     evaluate()
     print()
