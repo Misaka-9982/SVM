@@ -1,11 +1,13 @@
 from random import randint
+from time import sleep
 
 import numpy as np
 from copy import deepcopy
 from sklearn import metrics
 
+
 class AllData:
-    def __init__(self, data_list: list, label_list: list, toler, c, k):  # 乳腺癌测试集线性可分，k应设置较大
+    def __init__(self, data_list: list, label_list: list, toler, c, k):
         self.data_mat = np.mat(data_list)
         self.label_mat = np.mat(label_list).T  # 行向量
         self.toler = toler
@@ -39,7 +41,8 @@ def load_data():
         for line in f.readlines():
             t_data_list.append([float(linedata) for linedata in line.split(',')[2:]])  # 去除第一个编号和第二个标签
             t_label_list.append(-1 if line.split(',')[1] == 'M' else 1)  # M-malignant恶性_-1   B-benign 良性_1
-    print(f'良性样本有{label_list.count(1) + t_label_list.count(1)}个，恶性样本有{label_list.count(-1) + t_label_list.count(-1)}个')
+    print(
+        f'良性样本有{label_list.count(1) + t_label_list.count(1)}个，恶性样本有{label_list.count(-1) + t_label_list.count(-1)}个')
     return data_list, label_list, t_data_list, t_label_list
 
 
@@ -59,9 +62,9 @@ def smo(max_iter: int):
         for i in range(alldata.nums):
             j = select_j(i)  # 随机选择一个不一样的j
             # 1 计算误差
-            Ei = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T
+            Ei = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T + alldata.b
                        - alldata.label_mat[i])
-            Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T
+            Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
                        - alldata.label_mat[j])
             # 松弛变量范围限定
             if ((alldata.label_mat[i] * Ei < -alldata.toler) and (alldata.alphas[i] < alldata.c)) or (
@@ -73,7 +76,7 @@ def smo(max_iter: int):
                 else:
                     L = max(0, alldata.alphas[j] + alldata.alphas[i] - alldata.c)
                     H = min(alldata.c, alldata.alphas[j] + alldata.alphas[i])
-                if L == H:   # 此时alpha为确定值0，无法更新
+                if L == H:  # 此时alpha为确定值0，无法更新
                     continue
                 # 3 学习速率
                 eta = alldata.inner_product[i, i] + alldata.inner_product[j, j] - 2 * alldata.inner_product[i, j]
@@ -92,13 +95,17 @@ def smo(max_iter: int):
                 # 6 更新ai
                 alldata.alphas[i] += alldata.label_mat[i] * alldata.label_mat[j] * (alphaj_old - alldata.alphas[j])
                 # 评估a更新幅度
-                # if np.abs(alldata.alphas[i] - alphai_old < 0.0001) and np.abs(alldata.alphas[j] - alphaj_old) < 0.0001:
-                #     continue
+                if np.abs(alldata.alphas[i] - alphai_old < 0.0001) and np.abs(alldata.alphas[j] - alphaj_old) < 0.0001:
+                    continue
                 # 7 计算b1、b2
-                b1 = alldata.b - Ei - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.data_mat[i] * alldata.data_mat[i].T\
-                    - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.data_mat[j] * alldata.data_mat[i].T
-                b2 = alldata.b - Ej - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.data_mat[i] * alldata.data_mat[j].T\
-                    - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.data_mat[j] * alldata.data_mat[j].T
+                b1 = alldata.b - Ei - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.data_mat[i] * \
+                     alldata.data_mat[i].T \
+                     - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.data_mat[j] * alldata.data_mat[
+                         i].T
+                b2 = alldata.b - Ej - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.data_mat[i] * \
+                     alldata.data_mat[j].T \
+                     - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.data_mat[j] * alldata.data_mat[
+                         j].T
                 # 8 更新b
                 if 0 < alldata.alphas[i] < alldata.c:
                     alldata.b = b1
@@ -112,7 +119,8 @@ def smo(max_iter: int):
                 continue
         if alpha_updated != 0:
             iternum += 1
-            evaluate()
+            if iternum % 1 == 0:
+                evaluate()
             print(f'第{iternum}次迭代')
         else:
             print(f'alpha停止更新，训练结束，已训练{iternum}代')
@@ -120,25 +128,34 @@ def smo(max_iter: int):
             break
 
 
-
 def evaluate():
-    predicts = []
+    predicts1 = []
     for i in range(alldata.nums):
-        predicts.append(np.sign(float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T)))
-    accuracy_score = metrics.accuracy_score(alldata.label_mat, predicts)
+        predicts1.append(np.sign(
+            float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T + alldata.b)))
+    accuracy_score = metrics.accuracy_score(alldata.label_mat, predicts1)
     print(f'训练集准确率{accuracy_score * 100: .2f}%')
 
-    predicts = []
+    predicts2 = []
     t_data_mat = np.mat(t_data_list)
     t_label_mat = np.mat(t_label_list).T  # 转行矩阵
     for i in range(len(t_label_mat)):
-        predicts.append(np.sign(float(np.multiply(alldata.alphas, alldata.label_mat).T
-                                      * alldata.data_mat * t_data_mat[i].T)))
-    accuracy_score = metrics.accuracy_score(t_label_mat, predicts)
-    print(f'测试集准确率{accuracy_score * 100: .2f}%')
+        predicts2.append(np.sign(float(np.multiply(alldata.alphas, alldata.label_mat).T
+                                       * alldata.data_mat * t_data_mat[i].T + alldata.b)))
+    accuracy_score_t = metrics.accuracy_score(t_label_mat, predicts2)
+    print(f'测试集准确率{accuracy_score_t * 100: .2f}%')
+    sumresult.append((accuracy_score, accuracy_score_t))
+    predicts.append((predicts1, predicts2))
+
 
 if __name__ == '__main__':
     data_list, label_list, t_data_list, t_label_list = load_data()  # 训练集和测试集
-    alldata = AllData(data_list, label_list, toler=0.0001, c=200, k=1.3)  # k默认1.5
-    smo(max_iter=20)
+    sumresult = []  # 正确率
+    predicts = []  # 预测结果
+    # for knum in range(1000, 2000, 50):
+    # print(f'当前k取值为{knum}')
+    # sleep(2)
+    alldata = AllData(data_list, label_list, toler=0.0001, c=200, k=1300)  # k为径向基核函数中的超参数 1850
+    smo(max_iter=200)
     evaluate()
+    print()
