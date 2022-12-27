@@ -60,15 +60,16 @@ def smo(max_iter: int):
         alpha_updated = 0  # alpha更新次数
         # 遍历全数据集
         for i in range(alldata.nums):
-            j = select_j(i)  # 随机选择一个不一样的j
             # 1 计算误差
             Ei = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T + alldata.b
                        - alldata.label_mat[i])
-            Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
-                       - alldata.label_mat[j])
             # 松弛变量范围限定
             if ((alldata.label_mat[i] * Ei < -alldata.toler) and (alldata.alphas[i] < alldata.c)) or (
                     (alldata.label_mat[i] * Ei > alldata.toler) and (alldata.alphas[i] > 0)):
+                j = select_j(i)  # 随机选择一个不一样的j
+                Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
+                           - alldata.label_mat[j])
+
                 # 2 计算上下界
                 if alldata.label_mat[i] != alldata.label_mat[j]:
                     L = max(0, alldata.alphas[j] - alldata.alphas[i])
@@ -155,7 +156,7 @@ if __name__ == '__main__':
     # for knum in range(1000, 2000, 50):
     # print(f'当前k取值为{knum}')
     # sleep(2)
-    alldata = AllData(data_list, label_list, toler=0.1, c=200, k=50)  # k为径向基核函数中的超参数 50-100
-    smo(max_iter=150)
+    alldata = AllData(data_list, label_list, toler=0.1, c=200, k=50)  # k为径向基核函数中的超参数 50-100  C最开始默认200
+    smo(max_iter=550)
     evaluate()
     print()
