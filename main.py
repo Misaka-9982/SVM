@@ -95,8 +95,8 @@ def smo(max_iter: int):
                 # 6 更新ai
                 alldata.alphas[i] += alldata.label_mat[i] * alldata.label_mat[j] * (alphaj_old - alldata.alphas[j])
                 # 评估a更新幅度
-                if np.abs(alldata.alphas[i] - alphai_old < 0.0001) and np.abs(alldata.alphas[j] - alphaj_old) < 0.0001:
-                    continue
+                # if np.abs(alldata.alphas[i] - alphai_old < 0.0001) and np.abs(alldata.alphas[j] - alphaj_old) < 0.0001:
+                #     continue
                 # 7 计算b1、b2
                 b1 = alldata.b - Ei - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.data_mat[i] * \
                      alldata.data_mat[i].T \
@@ -125,7 +125,7 @@ def smo(max_iter: int):
         else:
             print(f'alpha停止更新，训练结束，已训练{iternum}代')
             evaluate()
-            break
+            # break
 
 
 def evaluate():
@@ -155,7 +155,7 @@ if __name__ == '__main__':
     # for knum in range(1000, 2000, 50):
     # print(f'当前k取值为{knum}')
     # sleep(2)
-    alldata = AllData(data_list, label_list, toler=0.0001, c=200, k=1300)  # k为径向基核函数中的超参数 1850
-    smo(max_iter=200)
+    alldata = AllData(data_list, label_list, toler=0.1, c=200, k=50)  # k为径向基核函数中的超参数 50-100
+    smo(max_iter=150)
     evaluate()
     print()
