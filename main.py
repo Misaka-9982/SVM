@@ -1,9 +1,8 @@
 from random import randint
 
 import numpy as np
-from tqdm import tqdm
 from copy import deepcopy
-
+from sklearn import metrics
 
 class AllData:
     def __init__(self, data_list: list, label_list: list, toler, c, k):  # 乳腺癌测试集线性可分，k应设置较大
@@ -28,14 +27,20 @@ class AllData:
 
 
 def load_data():
-    data_list = []
+    data_list = []  # 训练集
     label_list = []
+    t_data_list = []  # 测试集
+    t_label_list = []
     with open('wdbc.data', 'r') as f:
         for line in f.readlines():
             data_list.append([float(linedata) for linedata in line.split(',')[2:]])  # 去除第一个编号和第二个标签
             label_list.append(-1 if line.split(',')[1] == 'M' else 1)  # M-malignant恶性_-1   B-benign 良性_1
-    print(f'良性样本有{label_list.count(1)}个，恶性样本有{label_list.count(-1)}个')
-    return data_list, label_list
+    with open('wdbctest.data', 'r') as f:
+        for line in f.readlines():
+            t_data_list.append([float(linedata) for linedata in line.split(',')[2:]])  # 去除第一个编号和第二个标签
+            t_label_list.append(-1 if line.split(',')[1] == 'M' else 1)  # M-malignant恶性_-1   B-benign 良性_1
+    print(f'良性样本有{label_list.count(1) + t_label_list.count(1)}个，恶性样本有{label_list.count(-1) + t_label_list.count(-1)}个')
+    return data_list, label_list, t_data_list, t_label_list
 
 
 def select_j(i):
@@ -87,8 +92,8 @@ def smo(max_iter: int):
                 # 6 更新ai
                 alldata.alphas[i] += alldata.label_mat[i] * alldata.label_mat[j] * (alphaj_old - alldata.alphas[j])
                 # 评估a更新幅度
-                if np.abs(alldata.alphas[i] - alphai_old < 0.0001) and np.abs(alldata.alphas[j] - alphaj_old) < 0.0001:
-                    continue
+                # if np.abs(alldata.alphas[i] - alphai_old < 0.0001) and np.abs(alldata.alphas[j] - alphaj_old) < 0.0001:
+                #     continue
                 # 7 计算b1、b2
                 b1 = alldata.b - Ei - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.data_mat[i] * alldata.data_mat[i].T\
                     - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.data_mat[j] * alldata.data_mat[i].T
@@ -109,21 +114,31 @@ def smo(max_iter: int):
             iternum += 1
             evaluate()
             print(f'第{iternum}次迭代')
+        else:
+            print(f'alpha停止更新，训练结束，已训练{iternum}代')
+            evaluate()
+            break
 
 
 
 def evaluate():
-    error = 0
+    predicts = []
     for i in range(alldata.nums):
-        predict = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T)
-        if np.sign(predict) != np.sign(alldata.label_mat[i]):
-            error += 1
-    error_rate = (error / alldata.nums) * 100
-    print(f'训练集错误率{error_rate}%')
+        predicts.append(np.sign(float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T)))
+    accuracy_score = metrics.accuracy_score(alldata.label_mat, predicts)
+    print(f'训练集准确率{accuracy_score * 100: .2f}%')
 
+    predicts = []
+    t_data_mat = np.mat(t_data_list)
+    t_label_mat = np.mat(t_label_list).T  # 转行矩阵
+    for i in range(len(t_label_mat)):
+        predicts.append(np.sign(float(np.multiply(alldata.alphas, alldata.label_mat).T
+                                      * alldata.data_mat * t_data_mat[i].T)))
+    accuracy_score = metrics.accuracy_score(t_label_mat, predicts)
+    print(f'测试集准确率{accuracy_score * 100: .2f}%')
 
 if __name__ == '__main__':
-    data_list, label_list = load_data()
+    data_list, label_list, t_data_list, t_label_list = load_data()  # 训练集和测试集
     alldata = AllData(data_list, label_list, toler=0.0001, c=200, k=1.3)  # k默认1.5
-    smo(max_iter=200)
+    smo(max_iter=20)
     evaluate()
