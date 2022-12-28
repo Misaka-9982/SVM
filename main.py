@@ -121,7 +121,6 @@ def smo(max_iter: int):
             if ((alldata.label_mat[i] * Ei < -alldata.toler) and (alldata.alphas[i] < alldata.c)) or (
                     (alldata.label_mat[i] * Ei > alldata.toler) and (alldata.alphas[i] > 0)):
                 j, Ej = select_j(i, alldata, Ei)
-                print(f'{j}')
                 # j = select_j(i)  # 随机选择一个不一样的j
                 # Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
                 #            - alldata.label_mat[j])
@@ -134,7 +133,7 @@ def smo(max_iter: int):
                     L = max(0, alldata.alphas[j] + alldata.alphas[i] - alldata.c)
                     H = min(alldata.c, alldata.alphas[j] + alldata.alphas[i])
                 if L == H:  # 此时alpha为确定值0，无法更新
-                    print('上下界相等，alpha无法更新')
+                    print(f'上下界相等，alpha已更新{alpha_updated}次')
                     continue
                 # 3 学习速率
                 eta = alldata.inner_product[i, i] + alldata.inner_product[j, j] - 2 * alldata.inner_product[i, j]
@@ -172,7 +171,7 @@ def smo(max_iter: int):
                     alldata.b = b2
                 else:
                     alldata.b = (b1 + b2) / 2
-                alpha_updated += 1
+                alpha_updated += 2
 
             else:
                 continue
@@ -220,7 +219,7 @@ if __name__ == '__main__':
     # print(f'当前k取值为{knum}')
     # sleep(2)
     # k为径向基核函数中的超参数 50-100  C最开始默认200 toler 0.0001
-    alldata = AllData(data_list, label_list, toler=0.0001, c=10, k=1597430.008512372)
+    alldata = AllData(data_list, label_list, toler=0.0001, c=1, k=1597430)
     smo(max_iter=550)
     evaluate()
     print()
