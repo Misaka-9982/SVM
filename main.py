@@ -15,16 +15,30 @@ class AllData:
         self.nums = np.shape(self.data_mat)[0]  # 样本总数
         self.attribute = np.shape(self.data_mat)[1]  # 属性总数
         self.k = k  # 径向基核函数中的超参数
-        self.inner_product = self.findinner_p()  # 用核函数求所有样本之间的内积
+        self.inner_product = self.findinner_p(self.data_mat, self.data_mat, self.k)  # 用核函数求所有样本之间的内积
         self.alphas = np.mat(np.zeros(shape=(self.nums, 1), dtype=np.float64))  # alpha乘子
         self.b = 0  # 标量参数b
+        self.eCache = np.mat(np.zeros((self.nums, 2)))  # 根据矩阵行数初始化虎误差缓存，第一列为是否有效的标志位，第二列为实际的误差E的值。
 
-    def findinner_p(self) -> np.matrix:  # 径向基核函数 封装在类里
-        inner_product = np.mat(np.zeros(shape=(self.nums, self.nums), dtype=np.float64))  # 初始化核函数求出的内积
-        for i in range(self.nums):  # i j都是行索引，一行一个样本
-            for j in range(self.nums):
-                inner_product[i, j] = np.exp(-((np.linalg.norm(self.data_mat[i, :] - self.data_mat[j, :])) ** 2)
-                                             / (self.k ** 2))
+    @staticmethod
+    def findinner_p(data_mat1: np.matrix, data_mat2: np.matrix, k) -> np.matrix:  # 径向基核函数 封装在类里
+        nums1 = data_mat1.shape[0]
+        nums2 = data_mat2.shape[0]
+        inner_product = np.mat(np.zeros(shape=(nums1, nums2)), dtype=np.float64)  # 初始化核函数求出的内积
+        for i in range(nums1):  # i j都是行索引，一行一个样本
+            for j in range(nums2):
+                if nums1 > 1 and nums2 > 1:
+                    inner_product[i, j] = np.exp(-((np.linalg.norm(data_mat1[i, :] - data_mat2[j, :])) ** 2)
+                                                 / (k ** 2))
+                elif nums1 == 1 and nums2 > 1:
+                    inner_product[i, j] = np.exp(-((np.linalg.norm(data_mat1[i] - data_mat2[j, :])) ** 2)
+                                                 / (k ** 2))
+                elif nums1 > 1 and nums2 == 1:
+                    inner_product[i, j] = np.exp(-((np.linalg.norm(data_mat1[i, :] - data_mat2[j])) ** 2)
+                                                 / (k ** 2))
+                else:
+                    inner_product[i, j] = np.exp(-((np.linalg.norm(data_mat1[i] - data_mat2[j])) ** 2)
+                                                 / (k ** 2))
         return inner_product
 
 
@@ -54,6 +68,38 @@ def select_j(i):
     return j
 
 
+def selectJ(i, alldata, Ei):
+    maxK = -1
+    maxDeltaE = 0
+    Ej = 0  # 初始化
+    alldata.eCache[i] = [1, Ei]  # 根据Ei更新误差缓存
+    validEcacheList = np.nonzero(alldata.eCache[:, 0].A)[0]  # 返回误差不为0的数据的索引值
+    # 优先更新误差不为0的点?
+    if (len(validEcacheList)) > 1:  # 有不为0的误差
+        for k in validEcacheList:  # 遍历,找到最大的Ek
+            if k == i: continue  # 不计算i,浪费时间
+            Ek = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[k, :].T + alldata.b
+                       - alldata.label_mat[k])  # 计算Ek
+            deltaE = abs(Ei - Ek)  # 计算|Ei-Ek|
+            if (deltaE > maxDeltaE):  # 找到maxDeltaE
+                maxK = k
+                maxDeltaE = deltaE
+                Ej = Ek
+        return maxK, Ej  # 返回maxK,Ej
+    else:  # 没有不为0的误差
+        j = select_j(i)  # 随机选择alpha_j的索引值
+        Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
+                   - alldata.label_mat[j])  # 计算Ej
+    return j, Ej  # j,Ej
+
+
+def updateE(k):
+    Ek = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[k, :].T + alldata.b
+               - alldata.label_mat[k])  # 计算Ek
+    alldata.eCache[k] = [1, Ek]  # 更新误差缓存
+
+
+
 def smo(max_iter: int):
     iternum = 0  # 当前迭代次数
     entire_data = True
@@ -74,9 +120,11 @@ def smo(max_iter: int):
             # 松弛变量范围限定                                        受软间隔影响此时alpha可能小于0，因此只需满足一侧，另一边同理
             if ((alldata.label_mat[i] * Ei < -alldata.toler) and (alldata.alphas[i] < alldata.c)) or (
                     (alldata.label_mat[i] * Ei > alldata.toler) and (alldata.alphas[i] > 0)):
-                j = select_j(i)  # 随机选择一个不一样的j
-                Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
-                           - alldata.label_mat[j])
+                j, Ej = selectJ(i, alldata, Ei)
+                print(f'{j}')
+                # j = select_j(i)  # 随机选择一个不一样的j
+                # Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
+                #            - alldata.label_mat[j])
 
                 # 2 计算上下界
                 if alldata.label_mat[i] != alldata.label_mat[j]:
@@ -86,6 +134,7 @@ def smo(max_iter: int):
                     L = max(0, alldata.alphas[j] + alldata.alphas[i] - alldata.c)
                     H = min(alldata.c, alldata.alphas[j] + alldata.alphas[i])
                 if L == H:  # 此时alpha为确定值0，无法更新
+                    print('上下界相等，alpha无法更新')
                     continue
                 # 3 学习速率
                 eta = alldata.inner_product[i, i] + alldata.inner_product[j, j] - 2 * alldata.inner_product[i, j]
@@ -101,20 +150,21 @@ def smo(max_iter: int):
                     alldata.alphas[j] = H
                 elif alldata.alphas[j] < L:
                     alldata.alphas[j] = L
+                # 更新ej到缓存
+                updateE(j)
                 # 6 更新ai
                 alldata.alphas[i] += alldata.label_mat[i] * alldata.label_mat[j] * (alphaj_old - alldata.alphas[j])
+                updateE(i)
                 # 评估a更新幅度
                 # if np.abs(alldata.alphas[i] - alphai_old < 0.0001) and np.abs(alldata.alphas[j] - alphaj_old) < 0.0001:
                 #     continue
                 # 7 计算b1、b2
-                b1 = alldata.b - Ei - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.data_mat[i] * \
-                     alldata.data_mat[i].T \
-                     - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.data_mat[j] * alldata.data_mat[
-                         i].T
-                b2 = alldata.b - Ej - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.data_mat[i] * \
-                     alldata.data_mat[j].T \
-                     - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.data_mat[j] * alldata.data_mat[
-                         j].T
+                b1 = alldata.b - Ei - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.inner_product[
+                    i, i] \
+                     - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.inner_product[j, i]
+                b2 = alldata.b - Ej - alldata.label_mat[i] * (alldata.alphas[i] - alphai_old) * alldata.inner_product[
+                    i, j] \
+                     - alldata.label_mat[j] * (alldata.alphas[j] - alphaj_old) * alldata.inner_product[j, j]
                 # 8 更新b
                 if 0 < alldata.alphas[i] < alldata.c:
                     alldata.b = b1
@@ -154,7 +204,7 @@ def evaluate():
     t_label_mat = np.mat(t_label_list).T  # 转行矩阵
     for i in range(len(t_label_mat)):
         predicts2.append(np.sign(float(np.multiply(alldata.alphas, alldata.label_mat).T
-                                       * alldata.data_mat * t_data_mat[i].T + alldata.b)))
+                                       * alldata.findinner_p(alldata.data_mat, t_data_mat[i, :], alldata.k) + alldata.b)))
     accuracy_score_t = metrics.accuracy_score(t_label_mat, predicts2)
     print(f'测试集准确率{accuracy_score_t * 100: .2f}%')
     sumresult.append((accuracy_score, accuracy_score_t))
@@ -168,7 +218,8 @@ if __name__ == '__main__':
     # for knum in range(1000, 2000, 50):
     # print(f'当前k取值为{knum}')
     # sleep(2)
-    alldata = AllData(data_list, label_list, toler=0.1, c=100, k=50)  # k为径向基核函数中的超参数 50-100  C最开始默认200
+    # k为径向基核函数中的超参数 50-100  C最开始默认200 toler 0.0001
+    alldata = AllData(data_list, label_list, toler=0.0001, c=10, k=1597430.008512372)
     smo(max_iter=550)
     evaluate()
     print()
