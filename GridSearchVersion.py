@@ -227,8 +227,8 @@ if __name__ == '__main__':
     # alldata = AllData(toler=0.0001, c=1, k=1600000)
     # smo(max_iter=100)
     classifier = AllData()
-    parameters = {'toler': np.linspace(1e-4, 1e-4, 1), 'c': np.linspace(1, 2, 5),
-                  'k': np.linspace(20, 40, 5)}
+    parameters = {'toler': np.linspace(1e-4, 1e-4, 1), 'c': np.linspace(0.8, 0.8, 1),
+                  'k': np.linspace(26.5, 26.5, 1)}
     gs = GridSearchCV(classifier, parameters, n_jobs=-1, verbose=2)
     res = gs.fit(data_list, label_list)
     print(f'best_params_:{gs.best_params_}')

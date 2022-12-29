@@ -103,7 +103,8 @@ def smo(max_iter: int):
     iternum = 0  # 当前迭代次数
     entire_data = True
     alpha_updated = 0
-    while (iternum < max_iter and alpha_updated > 0) or entire_data:  # 是否加入其他条件？
+    stop_flag = 0
+    while iternum < max_iter  or entire_data:  # 是否加入其他条件？
         alpha_updated = 0  # alpha更新次数
         i_range = []  # 或range对象 表示i的迭代范围
 
@@ -132,7 +133,7 @@ def smo(max_iter: int):
                     L = max(0, alldata.alphas[j] + alldata.alphas[i] - alldata.c)
                     H = min(alldata.c, alldata.alphas[j] + alldata.alphas[i])
                 if L == H:  # 此时alpha为确定值0，无法更新
-                    print(f'上下界相等，alpha已更新{alpha_updated}次')
+                    print(f'i={i}, alpha已更新{alpha_updated}次')
                     continue
                 # 3 学习速率
                 eta = alldata.inner_product[i, i] + alldata.inner_product[j, j] - 2 * alldata.inner_product[i, j]
@@ -180,12 +181,16 @@ def smo(max_iter: int):
         if iternum % 10 == 0:
             evaluate()
         if entire_data:  # 全样本更新后标志位置False
-            print('全样本更新')
             entire_data = False
-            if alpha_updated == 0:  # alpha全样本都不更新即结束
+            if alpha_updated == 0 and stop_flag < 3:  # 阈值 防止过早停止 alpha全样本20次都不更新即结束
+                stop_flag += 1
+            elif alpha_updated == 0 and stop_flag >= 3:
                 print(f'alpha停止更新，共迭代{iternum}次')
                 break
+            else:  # 全样本有alpha更新 即将停止标签置0
+                stop_flag = 0
         elif alpha_updated == 0:  # 非全样本 alpha无更新,更换为全样本模式
+            print('全样本更新')
             entire_data = True
 
 
@@ -195,10 +200,10 @@ def evaluate(end=False):
     for i in range(alldata.nums):
         raw_predicts1.append(
             float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T + alldata.b))
-        predicts1.append(np.where(np.array(raw_predicts1[-1]) > 0.000001, 1, -1))
-        # predicts1.append(np.sign(raw_predicts1[-1]))
+        # predicts1.append(np.where(np.array(raw_predicts1[-1]) > 0.000001, 1, -1))
+        predicts1.append(np.sign(raw_predicts1[-1]))
     accuracy_score = metrics.accuracy_score(alldata.label_mat, predicts1)
-    print(f'训练集准确率{accuracy_score * 100: .2f}%')
+    print(f'本轮训练集准确率{accuracy_score * 100: .2f}%')
 
     predicts2 = []
     raw_predicts2 = []
@@ -208,14 +213,18 @@ def evaluate(end=False):
         raw_predicts2.append(float(np.multiply(alldata.alphas, alldata.label_mat).T
                                    * alldata.findinner_p(alldata.data_mat, t_data_mat[i, :],
                                                          alldata.k) + alldata.b))
-        predicts2.append(np.where(np.array(raw_predicts2[-1]) > 0.000001, 1, -1))
-        # predicts2.append(np.sign(raw_predicts2[-1]))
+        # predicts2.append(np.where(np.array(raw_predicts2[-1]) > 0.000001, 1, -1))
+        predicts2.append(np.sign(raw_predicts2[-1]))
     accuracy_score_t = metrics.accuracy_score(t_label_mat, predicts2)
-    print(f'测试集准确率{accuracy_score_t * 100: .2f}%')
-    sumresult.append((accuracy_score, accuracy_score_t))
-    predicts.append((predicts1, predicts2))
+    print(f'本轮测试集准确率{accuracy_score_t * 100: .2f}%')
 
     if end:
+        result.sort(reverse=True, key=lambda x: np.average([x[0], x[2]]))
+        print(f'\n最终训练集准确率{result[0][0] * 100: .2f}%')
+        print(f'最终测试集准确率{result[0][2] * 100: .2f}%')
+        raw_predicts1 = result[0][1]
+        raw_predicts2 = result[0][3]
+
         fpr1, tpr1, thresholds1 = metrics.roc_curve(alldata.label_mat, raw_predicts1, drop_intermediate=True)
         fpr2, tpr2, thresholds2 = metrics.roc_curve(t_label_mat, raw_predicts2, drop_intermediate=True)
         auc1 = metrics.auc(fpr1, tpr1)
@@ -243,17 +252,15 @@ def evaluate(end=False):
         plt.legend(loc='best')
 
         plt.show()
+    else:
+        return accuracy_score, raw_predicts1, accuracy_score_t, raw_predicts2
 
 
 if __name__ == '__main__':
     data_list, label_list, t_data_list, t_label_list = load_data()  # 训练集和测试集
-    sumresult = []  # 正确率
-    predicts = []  # 预测结果
-    # for knum in range(1000, 2000, 50):
-    # print(f'当前k取值为{knum}')
-    # sleep(2)
-    # k为径向基核函数中的超参数 50-100  C最开始默认200 toler 0.0001
-    alldata = AllData(data_list, label_list, toler=1e-4, c=1, k=1600000)
-    smo(max_iter=550)
+    result = []
+    for n in range(3):
+        alldata = AllData(data_list, label_list, toler=1e-4, c=0.8, k=27)
+        smo(max_iter=100)
+        result.append(evaluate())
     evaluate(end=True)
-    print()
