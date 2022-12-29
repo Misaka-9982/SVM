@@ -22,6 +22,7 @@ class AllData:
 
     @staticmethod
     def findinner_p(data_mat1: np.matrix, data_mat2: np.matrix, k) -> np.matrix:  # 径向基核函数 封装在类里
+        print('正在通过核函数计算内积')
         nums1 = data_mat1.shape[0]
         nums2 = data_mat2.shape[0]
         inner_product = np.mat(np.zeros(shape=(nums1, nums2)), dtype=np.float64)  # 初始化核函数求出的内积
@@ -219,7 +220,7 @@ def evaluate(end=False):
     print(f'本轮测试集准确率{accuracy_score_t * 100: .2f}%')
 
     if end:
-        result.sort(reverse=True, key=lambda x: np.average([x[0], x[2]]))
+        result.sort(reverse=True, key=lambda x: np.average([x[0], x[2]]))  # 训练集和测试集准确率均值降序
         print(f'\n最终训练集准确率{result[0][0] * 100: .2f}%')
         print(f'最终测试集准确率{result[0][2] * 100: .2f}%')
         raw_predicts1 = result[0][1]
@@ -259,7 +260,7 @@ def evaluate(end=False):
 if __name__ == '__main__':
     data_list, label_list, t_data_list, t_label_list = load_data()  # 训练集和测试集
     result = []
-    for n in range(4):
+    for n in range(10):
         alldata = AllData(data_list, label_list, toler=1e-4, c=0.8, k=27)
         smo(max_iter=100)
         result.append(evaluate())
