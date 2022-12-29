@@ -182,9 +182,9 @@ def smo(max_iter: int):
             evaluate()
         if entire_data:  # 全样本更新后标志位置False
             entire_data = False
-            if alpha_updated == 0 and stop_flag < 3:  # 阈值 防止过早停止 alpha全样本20次都不更新即结束
+            if alpha_updated == 0 and stop_flag < 2:  # 阈值 防止过早停止 alpha全样本20次都不更新即结束
                 stop_flag += 1
-            elif alpha_updated == 0 and stop_flag >= 3:
+            elif alpha_updated == 0 and stop_flag >= 2:
                 print(f'alpha停止更新，共迭代{iternum}次')
                 break
             else:  # 全样本有alpha更新 即将停止标签置0
@@ -259,8 +259,10 @@ def evaluate(end=False):
 if __name__ == '__main__':
     data_list, label_list, t_data_list, t_label_list = load_data()  # 训练集和测试集
     result = []
-    for n in range(3):
+    for n in range(4):
         alldata = AllData(data_list, label_list, toler=1e-4, c=0.8, k=27)
         smo(max_iter=100)
         result.append(evaluate())
+        if result[-1][2] > 0.95:
+            break
     evaluate(end=True)
