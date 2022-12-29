@@ -195,7 +195,8 @@ def evaluate(end=False):
     for i in range(alldata.nums):
         raw_predicts1.append(
             float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T + alldata.b))
-        predicts1.append(np.sign(raw_predicts1[-1]))
+        predicts1.append(np.where(np.array(raw_predicts1[-1]) > 0.000001, 1, -1))
+        # predicts1.append(np.sign(raw_predicts1[-1]))
     accuracy_score = metrics.accuracy_score(alldata.label_mat, predicts1)
     print(f'训练集准确率{accuracy_score * 100: .2f}%')
 
@@ -207,7 +208,8 @@ def evaluate(end=False):
         raw_predicts2.append(float(np.multiply(alldata.alphas, alldata.label_mat).T
                                    * alldata.findinner_p(alldata.data_mat, t_data_mat[i, :],
                                                          alldata.k) + alldata.b))
-        predicts2.append(np.sign(raw_predicts2[-1]))
+        predicts2.append(np.where(np.array(raw_predicts2[-1]) > 0.000001, 1, -1))
+        # predicts2.append(np.sign(raw_predicts2[-1]))
     accuracy_score_t = metrics.accuracy_score(t_label_mat, predicts2)
     print(f'测试集准确率{accuracy_score_t * 100: .2f}%')
     sumresult.append((accuracy_score, accuracy_score_t))
@@ -251,7 +253,7 @@ if __name__ == '__main__':
     # print(f'当前k取值为{knum}')
     # sleep(2)
     # k为径向基核函数中的超参数 50-100  C最开始默认200 toler 0.0001
-    alldata = AllData(data_list, label_list, toler=0.0001, c=1, k=1600000)
+    alldata = AllData(data_list, label_list, toler=1e-4, c=1, k=1600000)
     smo(max_iter=550)
     evaluate(end=True)
     print()
