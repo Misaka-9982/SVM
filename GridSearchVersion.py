@@ -3,11 +3,11 @@ from random import randint
 import numpy as np
 from copy import deepcopy
 from sklearn import metrics
-import matplotlib.pyplot as plt
+from sklearn.base import BaseEstimator, ClassifierMixin
 
 
-class AllData:
-    def __init__(self, data_list: list, label_list: list, toler, c, k):
+class AllData(BaseEstimator, ClassifierMixin):
+    def __init__(self, toler=0.0001, c=1, k=1600000):
         self.data_mat = np.mat(data_list)
         self.label_mat = np.mat(label_list).T  # 行向量
         self.toler = toler
@@ -61,6 +61,7 @@ def load_data():
 
 
 def rand_j(i):
+    # 启发式选择
     j = randint(0, alldata.nums - 1)  # 不能永远从0开始  randint范围是左右闭区间
     while j == i:
         j = randint(0, alldata.nums - 1)
@@ -70,27 +71,27 @@ def rand_j(i):
 def select_j(i, alldata, Ei):
     max_k = -1
     max_delta_e = 0
-    Ej = 0
-    alldata.E_cache[i] = [1, Ei]  # 根据Ei更新误差
-    valid_cache_index = np.nonzero(alldata.E_cache[:, 0].A)[0]  # 缓存中误差不为0的索引
+    Ej = 0  # 初始化
+    alldata.E_cache[i] = [1, Ei]  # 根据Ei更新误差缓存
+    valid_cache_index = np.nonzero(alldata.E_cache[:, 0].A)[0]  # 返回误差不为0的数据的索引值
     # 优先更新误差不为0的点
-    if len(valid_cache_index) > 1:
-        for k in valid_cache_index:  # 找出最大误差
-            if k == i:  # 跳过重复
+    if len(valid_cache_index) > 1:  # 有不为0的误差
+        for k in valid_cache_index:  # 找到最大的Ek
+            if k == i:  # 不计算i,浪费时间
                 continue
             Ek = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[k, :].T + alldata.b
-                       - alldata.label_mat[k])
-            delta_e = abs(Ei - Ek)
-            if delta_e > max_delta_e:
+                       - alldata.label_mat[k])  # 计算Ek
+            delta_e = abs(Ei - Ek)  # 计算|Ei-Ek|
+            if delta_e > max_delta_e:  # 找到最大误差之差
                 max_delta_e = delta_e
                 max_k = k
                 Ej = Ek
-        return max_k, Ej
+        return max_k, Ej  # 返回maxK,Ej
     else:  # 没有不为0的误差
-        j = rand_j(i)  # 随机选择j
+        j = rand_j(i)  # 随机选择alpha_j的索引值
         Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
-                   - alldata.label_mat[j])
-    return j, Ej
+                   - alldata.label_mat[j])  # 计算Ej
+    return j, Ej  # j,Ej
 
 
 def update_e(k):
@@ -189,69 +190,32 @@ def smo(max_iter: int):
             entire_data = True
 
 
-def evaluate(end=False):
+def evaluate():
     predicts1 = []
-    raw_predicts1 = []
     for i in range(alldata.nums):
-        raw_predicts1.append(
-            float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T + alldata.b))
-        predicts1.append(np.sign(raw_predicts1[-1]))
+        predicts1.append(np.sign(
+            float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[i, :].T + alldata.b)))
     accuracy_score = metrics.accuracy_score(alldata.label_mat, predicts1)
     print(f'训练集准确率{accuracy_score * 100: .2f}%')
 
     predicts2 = []
-    raw_predicts2 = []
     t_data_mat = np.mat(t_data_list)
     t_label_mat = np.mat(t_label_list).T  # 转行矩阵
     for i in range(len(t_label_mat)):
-        raw_predicts2.append(float(np.multiply(alldata.alphas, alldata.label_mat).T
-                                   * alldata.findinner_p(alldata.data_mat, t_data_mat[i, :],
-                                                         alldata.k) + alldata.b))
-        predicts2.append(np.sign(raw_predicts2[-1]))
+        predicts2.append(np.sign(float(np.multiply(alldata.alphas, alldata.label_mat).T
+                                       * alldata.findinner_p(alldata.data_mat, t_data_mat[i, :],
+                                                             alldata.k) + alldata.b)))
     accuracy_score_t = metrics.accuracy_score(t_label_mat, predicts2)
     print(f'测试集准确率{accuracy_score_t * 100: .2f}%')
-    sumresult.append((accuracy_score, accuracy_score_t))
-    predicts.append((predicts1, predicts2))
-
-    if end:
-        fpr1, tpr1, thresholds1 = metrics.roc_curve(alldata.label_mat, raw_predicts1, drop_intermediate=True)
-        fpr2, tpr2, thresholds2 = metrics.roc_curve(t_label_mat, raw_predicts2, drop_intermediate=True)
-        auc1 = metrics.auc(fpr1, tpr1)
-        auc2 = metrics.auc(fpr2, tpr2)
-        p1, r1, thres1 = metrics.precision_recall_curve(alldata.label_mat, raw_predicts1)
-        p2, r2, thres2 = metrics.precision_recall_curve(t_label_mat, raw_predicts2)
-        print(f'训练集auc:{auc1}\n测试集auc:{auc2}')
-        print(f'AP指标：{metrics.average_precision_score(t_label_mat, raw_predicts2)}')
-
-        plt.subplots_adjust(wspace=0.3)
-        plt.plot(fpr1, tpr1, color='red', label='training set')
-        plt.plot(fpr2, tpr2, color='blue', label='testing set')
-        plt.xlabel('False Positive')
-        plt.ylabel('True Positive')
-        plt.title('ROC Curve')
-        plt.legend(loc='best')
-        plt.show()
-        plt.clf()
-
-        plt.plot(p1, r1, color='red', label='training set')
-        plt.plot(p2, r2, color='blue', label='testing set')
-        plt.xlabel('Precision')
-        plt.ylabel('Recall')
-        plt.title('P-R Curve')
-        plt.legend(loc='best')
-
-        plt.show()
 
 
 if __name__ == '__main__':
     data_list, label_list, t_data_list, t_label_list = load_data()  # 训练集和测试集
-    sumresult = []  # 正确率
-    predicts = []  # 预测结果
     # for knum in range(1000, 2000, 50):
     # print(f'当前k取值为{knum}')
     # sleep(2)
     # k为径向基核函数中的超参数 50-100  C最开始默认200 toler 0.0001
     alldata = AllData(data_list, label_list, toler=0.0001, c=1, k=1600000)
     smo(max_iter=550)
-    evaluate(end=True)
-    print()
+    evaluate()
+
