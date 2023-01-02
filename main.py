@@ -1,7 +1,7 @@
 from random import randint
+from copy import deepcopy
 
 import numpy as np
-from copy import deepcopy
 from sklearn import metrics
 import matplotlib.pyplot as plt
 
@@ -15,6 +15,7 @@ class AllData:
         self.nums = np.shape(self.data_mat)[0]  # 样本总数
         self.attribute = np.shape(self.data_mat)[1]  # 属性总数
         self.k = k  # 径向基核函数中的超参数
+        print('正在通过核函数预计算内积')   # 此处预计算用时较长
         self.inner_product = self.findinner_p(self.data_mat, self.data_mat, self.k)  # 用核函数求所有样本之间的内积
         self.alphas = np.mat(np.zeros(shape=(self.nums, 1), dtype=np.float64))  # alpha乘子
         self.b = 0  # 标量参数b
@@ -22,7 +23,6 @@ class AllData:
 
     @staticmethod
     def findinner_p(data_mat1: np.matrix, data_mat2: np.matrix, k) -> np.matrix:  # 径向基核函数 封装在类里
-        print('正在通过核函数计算内积')
         nums1 = data_mat1.shape[0]
         nums2 = data_mat2.shape[0]
         inner_product = np.mat(np.zeros(shape=(nums1, nums2)), dtype=np.float64)  # 初始化核函数求出的内积
@@ -105,7 +105,7 @@ def smo(max_iter: int):
     entire_data = True
     alpha_updated = 0
     stop_flag = 0
-    while iternum < max_iter  or entire_data:  # 是否加入其他条件？
+    while iternum < max_iter or entire_data:  # 是否加入其他条件？
         alpha_updated = 0  # alpha更新次数
         i_range = []  # 或range对象 表示i的迭代范围
 
@@ -122,7 +122,7 @@ def smo(max_iter: int):
             if ((alldata.label_mat[i] * Ei < -alldata.toler) and (alldata.alphas[i] < alldata.c)) or (
                     (alldata.label_mat[i] * Ei > alldata.toler) and (alldata.alphas[i] > 0)):
                 j, Ej = select_j(i, alldata, Ei)
-                # j = select_j(i)  # 随机选择一个不一样的j
+                # j = rand_j(i)
                 # Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
                 #            - alldata.label_mat[j])
 
@@ -179,7 +179,7 @@ def smo(max_iter: int):
 
         iternum += 1
         print(f'第{iternum}次迭代，alpha更新{alpha_updated}次')
-        if iternum % 10 == 0:
+        if iternum % 2 == 0:
             evaluate()
         if entire_data:  # 全样本更新后标志位置False
             entire_data = False
@@ -225,6 +225,7 @@ def evaluate(end=False):
         print(f'最终测试集准确率{result[0][2] * 100: .2f}%')
         raw_predicts1 = result[0][1]
         raw_predicts2 = result[0][3]
+        predicts2 = result[0][4]
 
         fpr1, tpr1, thresholds1 = metrics.roc_curve(alldata.label_mat, raw_predicts1, drop_intermediate=True)
         fpr2, tpr2, thresholds2 = metrics.roc_curve(t_label_mat, raw_predicts2, drop_intermediate=True)
@@ -232,8 +233,11 @@ def evaluate(end=False):
         auc2 = metrics.auc(fpr2, tpr2)
         p1, r1, thres1 = metrics.precision_recall_curve(alldata.label_mat, raw_predicts1)
         p2, r2, thres2 = metrics.precision_recall_curve(t_label_mat, raw_predicts2)
-        print(f'训练集auc:{auc1}\n测试集auc:{auc2}')
-        print(f'AP指标：{metrics.average_precision_score(t_label_mat, raw_predicts2)}')
+        print(f'训练集auc: {auc1}\n测试集auc: {auc2}')
+        print(f'AP指标: {metrics.average_precision_score(t_label_mat, raw_predicts2)}')
+
+        # 求f1
+        print(f'F1分数: {metrics.f1_score(t_label_mat, predicts2)}')
 
         plt.subplots_adjust(wspace=0.3)
         plt.plot(fpr1, tpr1, color='red', label='training set')
@@ -254,16 +258,16 @@ def evaluate(end=False):
 
         plt.show()
     else:
-        return accuracy_score, raw_predicts1, accuracy_score_t, raw_predicts2
+        return accuracy_score, raw_predicts1, accuracy_score_t, raw_predicts2, predicts2   # predict2用于求f1
 
 
 if __name__ == '__main__':
     data_list, label_list, t_data_list, t_label_list = load_data()  # 训练集和测试集
     result = []
     for n in range(10):
-        alldata = AllData(data_list, label_list, toler=1e-4, c=0.8, k=27)
+        alldata = AllData(data_list, label_list, toler=1e-4, c=0.8, k=27)  # 最优超参数通过交叉验证法求出
         smo(max_iter=100)
         result.append(evaluate())
-        if result[-1][2] > 0.95:
+        if result[-1][2] > 0.95:   # 达到最优效果即停止
             break
     evaluate(end=True)
