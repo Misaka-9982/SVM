@@ -19,7 +19,7 @@ class AllData:
         self.inner_product = self.findinner_p(self.data_mat, self.data_mat, self.k)  # 用核函数求所有样本之间的内积
         self.alphas = np.mat(np.zeros(shape=(self.nums, 1), dtype=np.float64))  # alpha乘子
         self.b = 0  # 标量参数b
-        self.E_cache = np.mat(np.zeros((self.nums, 2)))  # 根据矩阵行数初始化虎误差缓存，第一列为是否有效的标志位，第二列为实际的误差E的值。
+        self.E_cache = np.mat(np.zeros((self.nums, 2)))  # 误差缓存，用于启发式搜索 0是有效标志位
 
     @staticmethod
     def findinner_p(data_mat1: np.matrix, data_mat2: np.matrix, k) -> np.matrix:  # 径向基核函数 封装在类里
@@ -68,27 +68,27 @@ def rand_j(i):
     return j
 
 
-def select_j(i, alldata, Ei):
-    max_k = -1
-    max_delta_e = 0
-    Ej = 0
-    alldata.E_cache[i] = [1, Ei]  # 根据Ei更新误差
+def select_j(i, Ei):
+    alldata.E_cache[i] = [1, Ei]  # 更新误差缓存
+    max_differ_e = 0
     valid_cache_index = np.nonzero(alldata.E_cache[:, 0].A)[0]  # 缓存中误差不为0的索引
+    # differ_e_list = []
     # 优先更新误差不为0的点
-    if len(valid_cache_index) > 1:
+    if len(valid_cache_index) >= 2:  # 不为0的多于2个再继续优选，否则直接随机
+        max_k = -1  # 要找出的索引，最大abs
+        Ej = 0
         for k in valid_cache_index:  # 找出最大误差
-            if k == i:  # 跳过重复
-                continue
-            Ek = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[k, :].T + alldata.b
-                       - alldata.label_mat[k])
-            delta_e = abs(Ei - Ek)
-            if delta_e > max_delta_e:
-                max_delta_e = delta_e
-                max_k = k
-                Ej = Ek
+            if k != i:  # 跳过重复
+                Ek = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[k, :].T + alldata.b
+                           - alldata.label_mat[k])
+                differ_e = abs(Ei - Ek)
+                if differ_e > max_differ_e:
+                    max_differ_e = differ_e
+                    max_k = k
+                    Ej = Ek
         return max_k, Ej
     else:  # 没有不为0的误差
-        j = rand_j(i)  # 随机选择j
+        j = rand_j(i)  # 随机选择一个j
         Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
                    - alldata.label_mat[j])
     return j, Ej
@@ -121,7 +121,7 @@ def smo(max_iter: int):
             # 松弛变量范围限定                                        受软间隔影响此时alpha可能小于0，因此只需满足一侧，另一边同理
             if ((alldata.label_mat[i] * Ei < -alldata.toler) and (alldata.alphas[i] < alldata.c)) or (
                     (alldata.label_mat[i] * Ei > alldata.toler) and (alldata.alphas[i] > 0)):
-                j, Ej = select_j(i, alldata, Ei)
+                j, Ej = select_j(i, Ei)
                 # j = rand_j(i)
                 # Ej = float(np.multiply(alldata.alphas, alldata.label_mat).T * alldata.inner_product[j, :].T + alldata.b
                 #            - alldata.label_mat[j])
